@@ -42,10 +42,9 @@ public class UserActivity extends AppCompatActivity {
         listViewBuses = findViewById(R.id.list_buses);
         txtAvailableBuses = findViewById(R.id.txt_available_buses);
 
-        listViewBuses.setVisibility(View.GONE); // Hide ListView Initially
+        listViewBuses.setVisibility(View.GONE);
         txtAvailableBuses.setVisibility(View.GONE);
 
-        // Load stored routes and buses
         loadRoutesAndBuses();
 
         btnFindBuses.setOnClickListener(v -> {
@@ -118,6 +117,7 @@ public class UserActivity extends AppCompatActivity {
                     List<Stop> stops = route.getStops();
                     int sourceIndex = -1, destinationIndex = -1;
 
+                    // ✅ Find index positions of source and destination
                     for (int i = 0; i < stops.size(); i++) {
                         if (stops.get(i).getName().equals(selectedSource)) {
                             sourceIndex = i;
@@ -127,17 +127,16 @@ public class UserActivity extends AppCompatActivity {
                         }
                     }
 
+                    // ✅ Ensure valid source → destination path
                     if (sourceIndex != -1 && destinationIndex != -1 && sourceIndex < destinationIndex) {
                         int totalStops = stops.size() - 1;
                         int travelStops = destinationIndex - sourceIndex;
 
-                        double adjustedFare = (bus.getFare() / totalStops) * travelStops;
-                        int adjustedTime = (bus.getTotalTime() / totalStops) * travelStops;
+                        // ✅ Create a copy of the bus and update values
+                        Bus tempBus = new Bus(bus);
+                        tempBus.updateAdjustedValues(totalStops, travelStops);
 
-                        bus.setAdjustedTime(adjustedTime);
-                        bus.setAdjustedFare(adjustedFare);
-
-                        matchingBuses.add(bus);
+                        matchingBuses.add(tempBus);
                     }
                 }
             }
@@ -148,14 +147,13 @@ public class UserActivity extends AppCompatActivity {
             return;
         }
 
-        // Sort buses by TotalTime (ascending order)
-        matchingBuses.sort((b1, b2) -> Integer.compare(b1.getAdjustedTime(), b2.getAdjustedTime()));
+        // ✅ Sort buses by travel time in ascending order
+        matchingBuses.sort((b1, b2) -> Integer.compare(b1.getTotalTime(), b2.getTotalTime()));
 
-        // Prepare list for display
         List<String> busInfoList = new ArrayList<>();
         for (Bus bus : matchingBuses) {
-            String busInfo = bus.getBusName() + " | Fare: ₹" + String.format("%.2f", bus.getAdjustedFare()) +
-                    " | Time: " + bus.getAdjustedTime() + " mins";
+            String busInfo = bus.getBusName() + " | Fare: ₹" + String.format("%.2f", bus.getFare()) +
+                    " | Time: " + bus.getTotalTime() + " mins";
             busInfoList.add(busInfo);
         }
 
@@ -165,12 +163,9 @@ public class UserActivity extends AppCompatActivity {
     private void showAvailableBuses(List<String> busInfoList, List<Bus> matchingBuses) {
         txtAvailableBuses.setVisibility(View.VISIBLE);
         listViewBuses.setVisibility(View.VISIBLE);
-//
-////        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, busInfoList);
-////        listViewBuses.setAdapter(adapter);
+
         BusListAdapter adapter = new BusListAdapter(this, matchingBuses);
         listViewBuses.setAdapter(adapter);
-
 
         listViewBuses.setOnItemClickListener((parent, view, position, id) -> {
             Bus selectedBus = matchingBuses.get(position);
@@ -178,6 +173,7 @@ public class UserActivity extends AppCompatActivity {
             intent.putExtra("source", selectedSource);
             intent.putExtra("destination", selectedDestination);
             intent.putExtra("selectedBus", new Gson().toJson(selectedBus));
+            intent.putExtra("totalTime", selectedBus.getTotalTime());
             startActivity(intent);
         });
     }
