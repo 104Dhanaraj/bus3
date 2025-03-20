@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="24dp"
+    android:background="@android:color/white">
+
+    <!-- Add Route Button -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_add_route"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Add Route"
+        android:textSize="16sp"
+        style="?attr/materialButtonOutlinedStyle"
+        android:layout_marginBottom="16dp"/>
+
+    <!-- Add Bus Button -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_add_bus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Add Bus"
+        android:textSize="16sp"
+        style="?attr/materialButtonOutlinedStyle"/>
+
+</LinearLayout>
