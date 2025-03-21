@@ -34,8 +34,6 @@ import org.osmdroid.config.Configuration;
 import org.osmdroid.util.GeoPoint;
 import org.osmdroid.views.MapView;
 import org.osmdroid.views.overlay.Polyline;
-import org.osmdroid.views.overlay.Overlay;
-import org.osmdroid.views.overlay.OverlayWithIW;
 import org.osmdroid.views.overlay.Polygon;
 
 import java.lang.reflect.Type;
@@ -159,8 +157,7 @@ public class BusStopsActivity extends AppCompatActivity {
     }
 
     private void drawRouteOnMap() {
-        // Clear previous overlays
-        mapView.getOverlays().clear();
+        mapView.getOverlays().clear(); // Clear previous overlays
 
         routeLine = new Polyline();
         routeLine.setColor(Color.BLUE);
@@ -170,9 +167,9 @@ public class BusStopsActivity extends AppCompatActivity {
             GeoPoint point = new GeoPoint(stop.getLatitude(), stop.getLongitude());
             routeLine.addPoint(point);
 
-            // Draw circle for stop
+            // Draw stop as a red circle (default)
             Polygon stopCircle = new Polygon();
-            stopCircle.setPoints(Polygon.pointsAsCircle(point, 100.0)); // Adjust size dynamically
+            stopCircle.setPoints(Polygon.pointsAsCircle(point, 100.0));
             stopCircle.setFillColor(Color.RED);
             stopCircle.setStrokeColor(Color.BLACK);
             stopCircle.setStrokeWidth(2.0f);
@@ -231,6 +228,36 @@ public class BusStopsActivity extends AppCompatActivity {
     private void announceStop(String stopName) {
         String announcement = "Approaching " + stopName;
         textToSpeech.speak(announcement, TextToSpeech.QUEUE_FLUSH, null, null);
-        runOnUiThread(() -> stopListAdapter.updateSelectedStop(stopName));
+
+        runOnUiThread(() -> {
+            stopListAdapter.updateSelectedStop(stopName);
+            highlightCurrentStopOnMap(stopName);
+        });
+    }
+
+    private void highlightCurrentStopOnMap(String currentStopName) {
+        mapView.getOverlays().clear();
+
+        routeLine = new Polyline();
+        routeLine.setColor(Color.BLUE);
+        routeLine.setWidth(8.0f);
+
+        for (Stop stop : stopList) {
+            GeoPoint point = new GeoPoint(stop.getLatitude(), stop.getLongitude());
+            routeLine.addPoint(point);
+
+            int fillColor = stop.getName().equals(currentStopName) ? Color.BLUE : Color.RED;
+
+            Polygon stopCircle = new Polygon();
+            stopCircle.setPoints(Polygon.pointsAsCircle(point, 100.0));
+            stopCircle.setFillColor(fillColor);
+            stopCircle.setStrokeColor(Color.BLACK);
+            stopCircle.setStrokeWidth(2.0f);
+
+            mapView.getOverlays().add(stopCircle);
+        }
+
+        mapView.getOverlays().add(routeLine);
+        mapView.invalidate();
     }
 }
