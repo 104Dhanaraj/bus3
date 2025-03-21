@@ -16,16 +16,6 @@
         android:gravity="center"
         android:paddingBottom="8dp" />
 
-    <!-- Fare TextView (Commented out as per request, can be added back if needed) -->
-    <!-- <TextView-->
-    <!-- android:id="@+id/txt_fare"-->
-    <!-- android:layout_width="match_parent"-->
-    <!-- android:layout_height="wrap_content"-->
-    <!-- android:text="Fare: $0.00"-->
-    <!-- android:textSize="16sp"-->
-    <!-- android:gravity="center"-->
-    <!-- android:paddingBottom="4dp" /> -->
-
     <!-- Total Time TextView -->
     <TextView
         android:id="@+id/txt_total_time"
@@ -35,6 +25,14 @@
         android:textSize="16sp"
         android:gravity="center"
         android:paddingBottom="10dp" />
+
+    <!-- MapView for Bus Route -->
+    <org.osmdroid.views.MapView
+        android:id="@+id/map_view"
+        android:layout_width="match_parent"
+        android:layout_height="300dp"
+        android:layout_marginBottom="10dp"/>
+
 
     <!-- List of Stops -->
     <ListView

@@ -3,6 +3,7 @@ package com.example.bus.user;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.location.Location;
 import android.os.Bundle;
 import android.speech.tts.TextToSpeech;
@@ -15,6 +16,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.preference.PreferenceManager;
 
 import com.example.bus.R;
 import com.example.bus.model.Bus;
@@ -27,6 +29,14 @@ import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+
+import org.osmdroid.config.Configuration;
+import org.osmdroid.util.GeoPoint;
+import org.osmdroid.views.MapView;
+import org.osmdroid.views.overlay.Polyline;
+import org.osmdroid.views.overlay.Overlay;
+import org.osmdroid.views.overlay.OverlayWithIW;
+import org.osmdroid.views.overlay.Polygon;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -43,25 +53,36 @@ public class BusStopsActivity extends AppCompatActivity {
     private String selectedSource, selectedDestination;
     private Bus selectedBus;
     private StopListAdapter stopListAdapter;
-
     private FusedLocationProviderClient locationClient;
     private LocationCallback locationCallback;
     private TextToSpeech textToSpeech;
+    private MapView mapView;
+    private Polyline routeLine;
 
     private static final float STOP_RADIUS = 150.0f;
     private Set<String> announcedStops = new HashSet<>();
     private Button startButton;
-    private int totalTime;  // Global variable to track total time
+    private int totalTime;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_bus_stops);
 
+        // Initialize OSMDroid configuration
+        Configuration.getInstance().load(getApplicationContext(),
+                PreferenceManager.getDefaultSharedPreferences(getApplicationContext()));
+
         txtSelectedBus = findViewById(R.id.txt_selected_bus);
         txtTotalTime = findViewById(R.id.txt_total_time);
         stopListView = findViewById(R.id.list_stops);
         startButton = findViewById(R.id.btn_start);
+        mapView = findViewById(R.id.map_view);
+
+        // Configure OSMDroid map
+        mapView.setTileSource(org.osmdroid.tileprovider.tilesource.TileSourceFactory.MAPNIK);
+        mapView.setBuiltInZoomControls(true);
+        mapView.setMultiTouchControls(true);
 
         textToSpeech = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
@@ -73,10 +94,9 @@ public class BusStopsActivity extends AppCompatActivity {
         selectedSource = intent.getStringExtra("source");
         selectedDestination = intent.getStringExtra("destination");
         String busJson = intent.getStringExtra("selectedBus");
-        totalTime = intent.getIntExtra("totalTime", -1); // Retrieve total time safely
+        totalTime = intent.getIntExtra("totalTime", -1);
 
         selectedBus = new Gson().fromJson(busJson, Bus.class);
-
         if (selectedBus == null) {
             Toast.makeText(this, "Error: No bus data received!", Toast.LENGTH_SHORT).show();
             finish();
@@ -85,22 +105,33 @@ public class BusStopsActivity extends AppCompatActivity {
 
         txtSelectedBus.setText("Bus: " + selectedBus.getBusName());
 
-        // Set total time correctly
         if (totalTime == -1) {
-            totalTime = selectedBus.getTotalTime(); // Fallback to bus total time
+            totalTime = selectedBus.getTotalTime();
         }
         txtTotalTime.setText("Time: " + totalTime + " min");
 
-        Log.d(TAG, "Received totalTime: " + totalTime);
-        Log.d(TAG, "Bus totalTime from object: " + selectedBus.getTotalTime());
-
         loadStopsForSelectedRoute();
         updateStopListView();
+        drawRouteOnMap(); // Draw route and stops
 
         locationClient = LocationServices.getFusedLocationProviderClient(this);
-
-        // Wait until the user clicks the start button to start location updates
         startButton.setOnClickListener(v -> startLocationUpdates());
+    }
+
+    private void updateStopListView() {
+        if (stopListAdapter == null) {
+            stopListAdapter = new StopListAdapter(this, stopList);
+            stopListView.setAdapter(stopListAdapter);
+        } else {
+            stopListAdapter.notifyDataSetChanged();
+        }
+    }
+
+    private List<Route> loadRoutesFromStorage() {
+        Gson gson = new Gson();
+        String json = getSharedPreferences("BusStops", MODE_PRIVATE).getString("routes", "[]");
+        Type routeListType = new TypeToken<ArrayList<Route>>() {}.getType();
+        return gson.fromJson(json, routeListType);
     }
 
     private void loadStopsForSelectedRoute() {
@@ -110,8 +141,8 @@ public class BusStopsActivity extends AppCompatActivity {
         for (Route route : routes) {
             if (route.getRouteName().equals(selectedBus.getAssignedRoute())) {
                 List<Stop> stops = route.getStops();
-
                 boolean startAdding = false;
+
                 for (Stop stop : stops) {
                     if (stop.getName().equals(selectedSource)) {
                         startAdding = true;
@@ -127,16 +158,34 @@ public class BusStopsActivity extends AppCompatActivity {
         }
     }
 
-    private void updateStopListView() {
-        stopListAdapter = new StopListAdapter(this, stopList);
-        stopListView.setAdapter(stopListAdapter);
-    }
+    private void drawRouteOnMap() {
+        // Clear previous overlays
+        mapView.getOverlays().clear();
 
-    private List<Route> loadRoutesFromStorage() {
-        Gson gson = new Gson();
-        String json = getSharedPreferences("BusStops", MODE_PRIVATE).getString("routes", "[]");
-        Type routeListType = new TypeToken<ArrayList<Route>>() {}.getType();
-        return gson.fromJson(json, routeListType);
+        routeLine = new Polyline();
+        routeLine.setColor(Color.BLUE);
+        routeLine.setWidth(8.0f);
+
+        for (Stop stop : stopList) {
+            GeoPoint point = new GeoPoint(stop.getLatitude(), stop.getLongitude());
+            routeLine.addPoint(point);
+
+            // Draw circle for stop
+            Polygon stopCircle = new Polygon();
+            stopCircle.setPoints(Polygon.pointsAsCircle(point, 100.0)); // Adjust size dynamically
+            stopCircle.setFillColor(Color.RED);
+            stopCircle.setStrokeColor(Color.BLACK);
+            stopCircle.setStrokeWidth(2.0f);
+
+            mapView.getOverlays().add(stopCircle);
+        }
+
+        mapView.getOverlays().add(routeLine);
+
+        if (!stopList.isEmpty()) {
+            mapView.getController().setZoom(15.0);
+            mapView.getController().animateTo(new GeoPoint(stopList.get(0).getLatitude(), stopList.get(0).getLongitude()));
+        }
     }
 
     private void startLocationUpdates() {
@@ -153,25 +202,17 @@ public class BusStopsActivity extends AppCompatActivity {
         locationCallback = new LocationCallback() {
             @Override
             public void onLocationResult(LocationResult locationResult) {
-                if (locationResult == null) {
-                    Log.d(TAG, "No location results");
-                    return;
-                }
+                if (locationResult == null) return;
                 for (Location location : locationResult.getLocations()) {
-                    Log.d(TAG, "User location: " + location.getLatitude() + ", " + location.getLongitude());
                     checkNearbyStop(location);
                 }
             }
         };
 
         locationClient.requestLocationUpdates(locationRequest, locationCallback, null);
-        Log.d(TAG, "Location updates started");
     }
 
     private void checkNearbyStop(Location userLocation) {
-        Stop closestStop = null;
-        float minDistance = Float.MAX_VALUE;
-
         for (Stop stop : stopList) {
             float[] distance = new float[1];
             Location.distanceBetween(
@@ -180,60 +221,16 @@ public class BusStopsActivity extends AppCompatActivity {
                     distance
             );
 
-            Log.d(TAG, "Distance to stop " + stop.getName() + ": " + distance[0] + "m");
-
-            if (distance[0] < minDistance && !announcedStops.contains(stop.getName())) {
-                minDistance = distance[0];
-                closestStop = stop;
+            if (distance[0] < STOP_RADIUS && !announcedStops.contains(stop.getName())) {
+                announceStop(stop.getName());
+                announcedStops.add(stop.getName());
             }
-        }
-
-        if (closestStop != null && minDistance < STOP_RADIUS) {
-            Log.d(TAG, "Announcing stop: " + closestStop.getName());
-            announceStop(closestStop.getName());
-            announcedStops.add(closestStop.getName());
-
-            updateFareAndTime(closestStop);
         }
     }
 
     private void announceStop(String stopName) {
         String announcement = "Approaching " + stopName;
-        if (textToSpeech != null && !textToSpeech.isSpeaking()) {
-            textToSpeech.speak(announcement, TextToSpeech.QUEUE_FLUSH, null, null);
-        }
-
+        textToSpeech.speak(announcement, TextToSpeech.QUEUE_FLUSH, null, null);
         runOnUiThread(() -> stopListAdapter.updateSelectedStop(stopName));
-    }
-
-    private void updateFareAndTime(Stop currentStop) {
-        int stopIndex = stopList.indexOf(currentStop);
-        if (stopIndex != -1) {
-            int remainingTime = totalTime - (stopIndex * (totalTime / stopList.size()));
-
-            runOnUiThread(() -> txtTotalTime.setText("Time: " + remainingTime + " min"));
-        }
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (locationClient != null && locationCallback != null) {
-            locationClient.removeLocationUpdates(locationCallback);
-        }
-        if (textToSpeech != null) {
-            textToSpeech.stop();
-            textToSpeech.shutdown();
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == 1 && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            startLocationUpdates();
-        } else {
-            Toast.makeText(this, "Location permission denied", Toast.LENGTH_SHORT).show();
-        }
     }
 }

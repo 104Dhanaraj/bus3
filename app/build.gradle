@@ -36,6 +36,7 @@ dependencies {
     implementation libs.constraintlayout
     implementation libs.volley
     implementation libs.play.services.location
+    implementation libs.preference
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
@@ -53,4 +54,9 @@ dependencies {
 
     implementation 'com.github.parse-community.Parse-SDK-Android:parse:1.26.0'
     implementation 'com.google.android.material:material:1.10.0'
+
+    implementation 'org.osmdroid:osmdroid-android:6.1.16'
+    implementation 'org.osmdroid:osmdroid-mapsforge:6.1.16'
+
+
 }
